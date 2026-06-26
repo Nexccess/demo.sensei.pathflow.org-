@@ -20,6 +20,14 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: 'APIキーが設定されていません' });
   }
 
+  // 文字数→読了時間マッピング
+  const readingTime = {
+    '400':  '約2分',
+    '800':  '約3〜4分',
+    '1200': '約5分'
+  };
+  const timeLabel = readingTime[String(length)] || '数分';
+
   const prompt = `あなたは士業事務所（税理士・行政書士・社労士・弁護士など）が顧問先に送る通信文・メルマガを作成するAIです。
 以下の制約を必ず守ってください。
 
@@ -40,11 +48,17 @@ module.exports = async function handler(req, res) {
 ・目的：${purpose}
 ・リスク許容度：${risk_level}
 
+【書き出し指示】
+必ず以下の形式で書き出すこと。
+「今日は〇〇について、${timeLabel}でご確認いただける内容です。」
+・〇〇はテーマを自然に要約した表現にすること
+・この一文の直後から本文に入ること
+
 【出力条件】
 ・文字数：${length}文字前後
 ・見出しは【見出し】形式で記載（markdownのハッシュ記号は使わない）
 ・HTML装飾なし、プレーンテキストで出力
-・最後に「詳しくは専門家へのご相談をおすすめします」という趣旨の一文を入れる
+・最後は必ず「気になる点や、もう少し詳しく聞いてみたいことがあれば、いつでもどうぞ。」で締めること
 
 【テーマ】
 ${topic}`;
@@ -66,7 +80,6 @@ ${topic}`;
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
         const msg = err.error?.message || `HTTP ${response.status}`;
-        // 高負荷・レート制限・過負荷は次モデルへ
         if (response.status === 429 || response.status === 503 || response.status === 500) {
           lastError = msg;
           console.warn(`[${model}] fallback: ${msg}`);
@@ -88,7 +101,6 @@ ${topic}`;
     } catch (err) {
       lastError = err.message;
       console.warn(`[${model}] error: ${err.message}`);
-      // 明らかな設定ミス・プロンプトエラーはフォールバックせず即終了
       if (err.message.includes('API_KEY') || err.message.includes('INVALID_ARGUMENT')) {
         return res.status(500).json({ error: 'APIエラーが発生しました: ' + err.message });
       }
@@ -96,7 +108,6 @@ ${topic}`;
     }
   }
 
-  // 全モデル失敗
   console.error('All models failed:', lastError);
   return res.status(503).json({
     error: 'しばらく時間をおいて再度お試しください。（サービスが混み合っています）'
