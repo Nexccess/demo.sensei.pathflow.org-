@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>コラム生成 AI</title>
+<meta name="description" content="商用利用前提のコラム文章を生成します">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;500&family=Zen+Kaku+Gothic+New:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --ink:        #1a1814;
+  --ink-mid:    #4a4640;
+  --ink-light:  #8a8680;
+  --ink-faint:  #c8c4be;
+  --paper:      #faf9f6;
+  --paper-warm: #f3f0eb;
+  --paper-mid:  #e8e4de;
+  --accent:     #2d5a3d;
+  --accent-light:#e8f0eb;
+  --accent-mid: #4a7c5c;
+  --warn:       #8b5e3c;
+  --warn-light: #f5ede4;
+  --serif: 'Noto Serif JP', serif;
+  --sans:  'Zen Kaku Gothic New', sans-serif;
+  --radius: 4px;
+  --radius-lg: 8px;
+}
+
+html { font-size: 16px; -webkit-font-smoothing: antialiased; scroll-behavior: smooth; }
+body { font-family: var(--sans); background: var(--paper); color: var(--ink); min-height: 100vh; line-height: 1.7; }
+
+/* ── LAYOUT ── */
+.layout { display: flex; min-height: 100vh; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: 220px; min-height: 100vh;
+  background: var(--ink); color: var(--paper);
+  display: flex; flex-direction: column;
+  padding: 2rem 1.5rem;
+  position: sticky; top: 0; height: 100vh;
+  flex-shrink: 0;
+}
+.logo { display: flex; align-items: center; gap: 12px; margin-bottom: 2.5rem; }
+.logo-mark {
+  font-family: var(--serif); font-size: 28px; font-weight: 300;
+  width: 44px; height: 44px;
+  border: 1px solid rgba(250,249,246,.25);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.logo-title { font-size: 13px; font-weight: 500; letter-spacing: .04em; color: var(--paper); }
+.logo-sub { font-size: 10px; color: rgba(250,249,246,.4); letter-spacing: .1em; margin-top: 1px; }
+.nav { display: flex; flex-direction: column; gap: 4px; margin-bottom: auto; }
+.nav-item {
+  font-size: 12px; letter-spacing: .06em; padding: 8px 10px;
+  border-radius: var(--radius); color: rgba(250,249,246,.5); cursor: pointer;
+}
+.nav-item.active { color: var(--paper); background: rgba(250,249,246,.08); }
+.side-notice {
+  font-size: 10px; line-height: 1.7; color: rgba(250,249,246,.3);
+  border-top: 1px solid rgba(250,249,246,.08);
+  padding-top: 1.25rem; margin-top: 2rem;
+}
+
+/* ── MAIN ── */
+.main { flex: 1; overflow-y: auto; background: var(--paper); }
+.container { max-width: 680px; margin: 0 auto; padding: 3rem 2.5rem 5rem; }
+
+/* ── SECTION ── */
+.section { margin-bottom: 2.5rem; }
+.section-header {
+  display: flex; align-items: baseline; gap: 10px;
+  margin-bottom: 1rem; padding-bottom: .6rem;
+  border-bottom: 1px solid var(--paper-mid);
+}
+.section-num {
+  font-family: var(--serif); font-size: 11px; font-weight: 300;
+  color: var(--ink-faint); letter-spacing: .1em;
+}
+.section-title {
+  font-size: 13px; font-weight: 500; color: var(--ink-mid);
+  letter-spacing: .06em; display: flex; align-items: center; gap: 8px;
+}
+.optional {
+  font-size: 10px; font-weight: 400; color: var(--ink-faint);
+  border: 1px solid var(--ink-faint); padding: 1px 6px; border-radius: 3px;
+}
+
+/* ── FIELDS ── */
+.field-group { margin-bottom: 1.1rem; }
+label.lbl {
+  display: block; font-size: 11px; color: var(--ink-light);
+  letter-spacing: .06em; margin-bottom: 6px;
+}
+textarea, input, select {
+  font-family: var(--sans); font-size: 14px; color: var(--ink);
+  background: var(--paper-warm); border: 1px solid var(--paper-mid);
+  border-radius: var(--radius); width: 100%; padding: 9px 12px;
+  transition: border-color .15s, background .15s; line-height: 1.6;
+}
+textarea { resize: vertical; min-height: 72px; }
+textarea::placeholder, input::placeholder { color: var(--ink-faint); }
+textarea:focus, input:focus, select:focus {
+  outline: none; border-color: var(--accent-mid); background: #fff;
+}
+select {
+  cursor: pointer; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a8680'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center;
+  padding-right: 32px;
+}
+
+/* ── PILLS ── */
+.pill-group { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill {
+  font-family: var(--sans); font-size: 12px; padding: 5px 14px;
+  border: 1px solid var(--paper-mid); border-radius: 100px;
+  background: var(--paper-warm); color: var(--ink-mid);
+  cursor: pointer; transition: all .15s;
+}
+.pill:hover { border-color: var(--accent-mid); color: var(--accent); }
+.pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* ── GRID ── */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+/* ── BUTTON ── */
+.generate-btn {
+  width: 100%; padding: 13px;
+  font-family: var(--sans); font-size: 14px; font-weight: 500;
+  letter-spacing: .06em; color: var(--paper);
+  background: var(--ink); border: none; border-radius: var(--radius);
+  cursor: pointer; transition: opacity .15s; margin-top: .5rem;
+}
+.generate-btn:hover:not(:disabled) { opacity: .8; }
+.generate-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+/* ── LOADING DOTS ── */
+.loading-wrap { display: flex; align-items: center; justify-content: center; }
+.dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: rgba(250,249,246,.7);
+  animation: blink .9s infinite;
+  margin: 0 2px;
+}
+.dot:nth-child(2) { animation-delay: .15s; }
+.dot:nth-child(3) { animation-delay: .3s; }
+@keyframes blink { 0%,100%{ opacity:.2 } 50%{ opacity:1 } }
+
+/* ── RESULT ── */
+.error-box {
+  margin-top: 1rem; padding: 10px 14px;
+  background: var(--warn-light);
+  border-left: 2px solid var(--warn);
+  font-size: 13px; color: var(--warn);
+}
+.result-section {
+  margin-top: 2.5rem; padding-top: 2rem;
+  border-top: 1px solid var(--paper-mid);
+}
+.result-header {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;
+}
+.result-title {
+  font-size: 12px; font-weight: 500; letter-spacing: .08em;
+  color: var(--ink-light); text-transform: uppercase;
+}
+.result-meta { display: flex; align-items: center; gap: 12px; }
+.char-count { font-size: 11px; color: var(--ink-faint); }
+.copy-btn {
+  font-family: var(--sans); font-size: 12px; padding: 5px 14px;
+  border: 1px solid var(--paper-mid); border-radius: 100px;
+  background: transparent; color: var(--ink-mid); cursor: pointer; transition: all .15s;
+}
+.copy-btn:hover { border-color: var(--accent-mid); color: var(--accent); }
+.warn-box {
+  margin-bottom: 1rem; padding: 9px 14px;
+  background: var(--warn-light); border-left: 2px solid var(--warn);
+  font-size: 12px; color: var(--warn);
+}
+.result-body {
+  font-family: var(--serif); font-size: 15px; font-weight: 300;
+  line-height: 2; color: var(--ink); white-space: pre-wrap;
+  background: #fff; border: 1px solid var(--paper-mid);
+  border-radius: var(--radius-lg); padding: 2rem 2.25rem; letter-spacing: .02em;
+}
+
+/* ── MOBILE ── */
+@media (max-width: 768px) {
+  .layout { flex-direction: column; }
+  .sidebar {
+    width: 100%; min-height: unset; height: auto;
+    position: static; flex-direction: row;
+    align-items: center; padding: 1rem 1.25rem;
+  }
+  .side-notice, .nav { display: none; }
+  .logo { margin-bottom: 0; }
+  .container { padding: 2rem 1.25rem 4rem; }
+  .grid2, .grid3 { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">文</div>
+      <div>
+        <div class="logo-title">コラム生成 AI</div>
+        <div class="logo-sub">Column Generator</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <span class="nav-item active">生成</span>
+    </nav>
+    <div class="side-notice">
+      本ツールは情報整理を目的としています。最終的な内容の判断は利用者が行ってください。
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="container">
+
+      <!-- 01 テーマ -->
+      <div class="section">
+        <div class="section-header">
+          <span class="section-num">01</span>
+          <h2 class="section-title">テーマ</h2>
+        </div>
+        <textarea id="topic" placeholder="例：フリーランスのインボイス対応について考える" rows="3"></textarea>
+      </div>
+
+      <!-- 02 文章条件 -->
+      <div class="section">
+        <div class="section-header">
+          <span class="section-num">02</span>
+          <h2 class="section-title">文章条件</h2>
+        </div>
+
+        <div class="field-group">
+          <label class="lbl">トーン</label>
+          <div class="pill-group" id="tone-group"></div>
+        </div>
+
+        <div class="field-group">
+          <label class="lbl">文字数</label>
+          <div class="pill-group" id="length-group"></div>
+        </div>
+
+        <div class="grid3">
+          <div class="field-group">
+            <label class="lbl">狙い</label>
+            <select id="purpose"></select>
+          </div>
+          <div class="field-group">
+            <label class="lbl">読者レベル</label>
+            <select id="reader_level"></select>
+          </div>
+          <div class="field-group">
+            <label class="lbl">リスク許容度</label>
+            <select id="risk_level"></select>
+          </div>
+        </div>
+      </div>
+
+      <!-- 03 クライアント情報 -->
+      <div class="section">
+        <div class="section-header">
+          <span class="section-num">03</span>
+          <h2 class="section-title">クライアント情報 <span class="optional">任意</span></h2>
+        </div>
+        <div class="grid2">
+          <div class="field-group">
+            <label class="lbl">業種・業界</label>
+            <input type="text" id="industry" placeholder="例：税理士事務所">
+          </div>
+          <div class="field-group">
+            <label class="lbl">規模感</label>
+            <input type="text" id="company_size" placeholder="例：中小企業">
+          </div>
+          <div class="field-group">
+            <label class="lbl">地域</label>
+            <input type="text" id="area" placeholder="例：東京都">
+          </div>
+          <div class="field-group">
+            <label class="lbl">立場</label>
+            <input type="text" id="position" placeholder="例：経営者向け">
+          </div>
+        </div>
+      </div>
+
+      <button class="generate-btn" id="gen-btn" onclick="generate()" disabled>
+        コラムを生成する
+      </button>
+
+      <div id="error-box"></div>
+      <div id="result-area"></div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+// ── 選択肢定義 ──
+const TONES = ['丁寧でわかりやすい','やわらかく親しみやすい','落ち着いた専門的','フランクで読みやすい'];
+const LENGTHS = [['400字','400'],['600字','600'],['800字','800'],['1000字','1000'],['1200字','1200']];
+const PURPOSES = ['認知・理解促進','行動を後押し','不安の解消','情報整理'];
+const READER_LEVELS = ['初心者・一般読者','中級者','専門家・上級者'];
+const RISK_LEVELS = ['低め（慎重に）','標準','やや高め'];
+
+let selectedTone = TONES[0];
+let selectedLength = '800';
+
+// ── 初期化 ──
+(function() {
+  // Tone pills
+  const tg = document.getElementById('tone-group');
+  TONES.forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = 'pill' + (t === selectedTone ? ' active' : '');
+    btn.textContent = t;
+    btn.onclick = () => {
+      selectedTone = t;
+      tg.querySelectorAll('.pill').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    };
+    tg.appendChild(btn);
+  });
+
+  // Length pills
+  const lg = document.getElementById('length-group');
+  LENGTHS.forEach(([label, val]) => {
+    const btn = document.createElement('button');
+    btn.className = 'pill' + (val === selectedLength ? ' active' : '');
+    btn.textContent = label;
+    btn.onclick = () => {
+      selectedLength = val;
+      lg.querySelectorAll('.pill').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    };
+    lg.appendChild(btn);
+  });
+
+  // Selects
+  [['purpose', PURPOSES], ['reader_level', READER_LEVELS], ['risk_level', RISK_LEVELS]].forEach(([id, opts]) => {
+    const sel = document.getElementById(id);
+    opts.forEach(o => sel.append(new Option(o, o)));
+    if (id === 'risk_level') sel.selectedIndex = 1;
+  });
+
+  // Topic → enable button
+  document.getElementById('topic').addEventListener('input', e => {
+    document.getElementById('gen-btn').disabled = !e.target.value.trim();
+  });
+})();
+
+// ── 生成 ──
+async function generate() {
+  const topic = document.getElementById('topic').value.trim();
+  if (!topic) return;
+
+  const btn = document.getElementById('gen-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading-wrap"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span style="margin-left:12px">生成しています...</span></span>';
+
+  document.getElementById('error-box').innerHTML = '';
+  document.getElementById('result-area').innerHTML = '';
+
+  const payload = {
+    topic,
+    tone:         selectedTone,
+    length:       selectedLength,
+    purpose:      document.getElementById('purpose').value,
+    reader_level: document.getElementById('reader_level').value,
+    risk_level:   document.getElementById('risk_level').value,
+    industry:     document.getElementById('industry').value,
+    company_size: document.getElementById('company_size').value,
+    area:         document.getElementById('area').value,
+    position:     document.getElementById('position').value,
+  };
+
+  try {
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'エラーが発生しました');
+
+    const warn = data.ngHits?.length > 0
+      ? `<div class="warn-box">NG表現が含まれている可能性があります：${data.ngHits.join('、')}</div>`
+      : '';
+
+    document.getElementById('result-area').innerHTML = `
+      <div class="result-section">
+        <div class="result-header">
+          <div class="result-title">生成結果</div>
+          <div class="result-meta">
+            <span class="char-count">${data.text.length}文字</span>
+            <button class="copy-btn" id="copy-btn">コピー</button>
+          </div>
+        </div>
+        ${warn}
+        <div class="result-body" id="result-body">${escHtml(data.text)}</div>
+      </div>`;
+
+    document.getElementById('copy-btn').onclick = () => {
+      navigator.clipboard.writeText(data.text);
+      const b = document.getElementById('copy-btn');
+      b.textContent = '✓ コピーしました';
+      setTimeout(() => b.textContent = 'コピー', 2000);
+    };
+
+  } catch (e) {
+    document.getElementById('error-box').innerHTML = `<div class="error-box">${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'コラムを生成する';
+  }
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>
