@@ -58,6 +58,7 @@ module.exports = async function handler(req, res) {
 ・文字数：${length}文字前後
 ・見出しは【見出し】形式で記載（markdownのハッシュ記号は使わない）
 ・HTML装飾なし、プレーンテキストで出力
+・マークダウン記法（**太字**、*斜体*、- リストなど）は一切使わないこと
 ・最後は必ず「気になる点や、もう少し詳しく聞いてみたいことがあれば、いつでもどうぞ。」で締めること
 
 【テーマ】
@@ -73,7 +74,7 @@ ${topic}`;
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.6, maxOutputTokens: 2048 }
+          generationConfig: { temperature: 0.6, maxOutputTokens: 4096 }
         })
       });
 
