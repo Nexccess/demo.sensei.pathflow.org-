@@ -5,8 +5,7 @@ module.exports = async function handler(req, res) {
 
   const {
     topic, tone, length, purpose,
-    reader_level, risk_level,
-    industry, company_size, area, position
+    reader_level, risk_level
   } = req.body;
 
   if (!topic) {
@@ -18,7 +17,7 @@ module.exports = async function handler(req, res) {
     return res.status(500).json({ error: 'APIキーが設定されていません' });
   }
 
-  const prompt = `あなたは商用利用前提のコラム文章を作成するAIです。
+  const prompt = `あなたは士業事務所（税理士・行政書士・社労士・弁護士など）が顧問先に送る通信文・メルマガを作成するAIです。
 以下の制約を必ず守ってください。
 
 【厳守事項】
@@ -37,12 +36,6 @@ module.exports = async function handler(req, res) {
 ・想定読者：${reader_level}
 ・目的：${purpose}
 ・リスク許容度：${risk_level}
-
-【クライアント情報】
-業種：${industry || '未指定'}
-規模：${company_size || '未指定'}
-地域：${area || '未指定'}
-立場：${position || '未指定'}
 
 【出力条件】
 ・文字数：${length}文字前後
@@ -77,6 +70,7 @@ ${topic}`;
     const ngHits = NG_WORDS.filter(w => text.includes(w));
 
     return res.status(200).json({ text, ngHits });
+
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'APIエラーが発生しました: ' + err.message });
