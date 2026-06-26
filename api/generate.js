@@ -1,12 +1,15 @@
+const MODELS = [
+  'gemini-2.5-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-1.5-flash-latest'
+];
+
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const {
-    topic, tone, length, purpose,
-    reader_level, risk_level
-  } = req.body;
+  const { topic, tone, length, purpose, reader_level, risk_level } = req.body;
 
   if (!topic) {
     return res.status(400).json({ error: 'テーマを入力してください' });
@@ -46,33 +49,56 @@ module.exports = async function handler(req, res) {
 【テーマ】
 ${topic}`;
 
-  try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.6, maxOutputTokens: 2048 }
-      })
-    });
+  let lastError = null;
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.error?.message || `Gemini API error ${response.status}`);
+  for (const model of MODELS) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.6, maxOutputTokens: 2048 }
+        })
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        const msg = err.error?.message || `HTTP ${response.status}`;
+        // 高負荷・レート制限・過負荷は次モデルへ
+        if (response.status === 429 || response.status === 503 || response.status === 500) {
+          lastError = msg;
+          console.warn(`[${model}] fallback: ${msg}`);
+          continue;
+        }
+        throw new Error(msg);
+      }
+
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      if (!text) throw new Error('生成結果が空です');
+
+      const NG_WORDS = ['すべき', '必要があります', '必ず', '必須', '絶対に'];
+      const ngHits = NG_WORDS.filter(w => text.includes(w));
+
+      console.log(`[${model}] success`);
+      return res.status(200).json({ text, ngHits, model });
+
+    } catch (err) {
+      lastError = err.message;
+      console.warn(`[${model}] error: ${err.message}`);
+      // 明らかな設定ミス・プロンプトエラーはフォールバックせず即終了
+      if (err.message.includes('API_KEY') || err.message.includes('INVALID_ARGUMENT')) {
+        return res.status(500).json({ error: 'APIエラーが発生しました: ' + err.message });
+      }
+      continue;
     }
-
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    if (!text) throw new Error('生成結果が空です');
-
-    const NG_WORDS = ['すべき', '必要があります', '必ず', '必須', '絶対に'];
-    const ngHits = NG_WORDS.filter(w => text.includes(w));
-
-    return res.status(200).json({ text, ngHits });
-
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: 'APIエラーが発生しました: ' + err.message });
   }
+
+  // 全モデル失敗
+  console.error('All models failed:', lastError);
+  return res.status(503).json({
+    error: 'しばらく時間をおいて再度お試しください。（サービスが混み合っています）'
+  });
 };
