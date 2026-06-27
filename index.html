@@ -338,9 +338,9 @@ textarea.field{resize:none;min-height:96px}
     <input type="email" id="email" class="field"
       placeholder="your@email.com" autocomplete="email"
       oninput="validateEmail()">
-    <div class="error-inline" id="email-error">有効なメールアドレスを入力してください</div>
+    <div class="error-inline" id="email-error"></div>
     <div class="step-nav">
-      <button class="btn-next" id="btn-s1" onclick="goStep(2)" disabled>次へ</button>
+      <button class="btn-next" id="btn-s1" onclick="checkEmailAndNext()" disabled>次へ</button>
     </div>
   </div>
 
@@ -590,11 +590,45 @@ function goStep(n) {
 
 /* ─── VALIDATE ─── */
 function validateEmail() {
+  const errEl = document.getElementById('email-error');
+  errEl.textContent = '有効なメールアドレスを入力してください';
   const val = document.getElementById('email').value.trim();
   const ok  = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
   document.getElementById('email-error').style.display = (!ok && val) ? 'block' : 'none';
   document.getElementById('btn-s1').disabled = !ok;
   S.email = ok ? val : '';
+}
+
+
+async function checkEmailAndNext() {
+  const btn = document.getElementById('btn-s1');
+  const errEl = document.getElementById('email-error');
+  btn.disabled = true;
+  btn.textContent = '確認中...';
+  errEl.style.display = 'none';
+  try {
+    const res = await fetch('/api/check-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: S.email })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'エラーが発生しました');
+    if (!data.allowed) {
+      errEl.textContent = 'このメールアドレスはすでにデモを利用済みです。続けてご利用いただくにはプランをご契約ください。';
+      errEl.style.display = 'block';
+      btn.textContent = '次へ';
+      btn.disabled = false;
+      return;
+    }
+    goStep(2);
+    btn.textContent = '次へ';
+  } catch(e) {
+    errEl.textContent = 'エラーが発生しました。しばらくしてお試しください。';
+    errEl.style.display = 'block';
+    btn.textContent = '次へ';
+    btn.disabled = false;
+  }
 }
 
 function validateTopic() {
