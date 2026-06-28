@@ -4,7 +4,7 @@ const MODELS = [
   'gemini-1.5-flash-latest'
 ];
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -113,4 +113,4 @@ ${topic}`;
   return res.status(503).json({
     error: 'しばらく時間をおいて再度お試しください。（サービスが混み合っています）'
   });
-};
+}
